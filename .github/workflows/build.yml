@@ -26,7 +26,7 @@ jobs:
       - name: 도구 설치
         run: |
           brew install ninja llvm
-          pip3 install setuptools
+          pip3 install --break-system-packages setuptools
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
           echo "$HOME/depot_tools" >> $GITHUB_PATH
 
@@ -111,7 +111,7 @@ jobs:
       - name: 도구 설치
         run: |
           brew install ninja llvm
-          pip3 install setuptools
+          pip3 install --break-system-packages setuptools
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
           echo "$HOME/depot_tools" >> $GITHUB_PATH
 
