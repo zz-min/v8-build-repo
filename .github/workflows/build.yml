@@ -38,6 +38,8 @@ jobs:
           fetch v8
           cd v8
           git checkout ${{ env.V8_VERSION }}
+          # mac_toolchain.py가 pkg_resources를 import하지만 실제로는 Skip하므로 빈 파일로 대체
+          echo "# patched: skip mac toolchain" > build/mac_toolchain.py
           VPYTHON_BYPASS="manually managed python not in path" gclient sync
 
       - name: V8 소스 패치
@@ -124,6 +126,7 @@ jobs:
           fetch v8
           cd v8
           git checkout ${{ env.V8_VERSION }}
+          echo "# patched: skip mac toolchain" > build/mac_toolchain.py
           VPYTHON_BYPASS="manually managed python not in path" gclient sync
 
       - name: V8 소스 패치
