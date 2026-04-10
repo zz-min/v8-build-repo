@@ -32,12 +32,12 @@ fi
 # V8 번들 clang 13이 최신 SDK의 _Float16 타입을 지원하지 않음
 CLANG_DIR="$V8_DIR/third_party/llvm-build/Release+Asserts/bin"
 if [ -d "$CLANG_DIR" ] && [[ "$OSTYPE" == "darwin"* ]]; then
-    # 원본 백업
-    if [ -f "$CLANG_DIR/clang" ] && [ ! -L "$CLANG_DIR/clang" ] && [ ! -f "$CLANG_DIR/clang.orig" ]; then
-        mv "$CLANG_DIR/clang" "$CLANG_DIR/clang.orig"
-    fi
+    # 원본 백업 (파일이든 심볼릭 링크든 무조건 교체)
+    [ -f "$CLANG_DIR/clang" ] && mv -f "$CLANG_DIR/clang" "$CLANG_DIR/clang.orig" 2>/dev/null || true
+    [ -f "$CLANG_DIR/clang++" ] && mv -f "$CLANG_DIR/clang++" "$CLANG_DIR/clang++.orig" 2>/dev/null || true
 
     SYSTEM_CLANG=$(xcrun -f clang)
+    SYSTEM_CLANGPP=$(xcrun -f clang++)
     RESOURCE_DIR=$(${SYSTEM_CLANG} -print-resource-dir)
 
     cat > "$CLANG_DIR/clang" << WRAPPER
@@ -48,11 +48,11 @@ WRAPPER
 
     cat > "$CLANG_DIR/clang++" << WRAPPER
 #!/bin/bash
-exec ${SYSTEM_CLANG}++ -resource-dir ${RESOURCE_DIR} -Wno-enum-constexpr-conversion "\$@"
+exec ${SYSTEM_CLANGPP} -resource-dir ${RESOURCE_DIR} -Wno-enum-constexpr-conversion "\$@"
 WRAPPER
     chmod +x "$CLANG_DIR/clang++"
 
-    echo "  [OK] macOS 시스템 clang 래퍼 생성"
+    echo "  [OK] macOS 시스템 clang/clang++ 래퍼 생성"
 
     # llvm-ar 심볼릭 링크 (없으면 생성)
     if [ ! -f "$CLANG_DIR/llvm-ar" ] || [ -L "$CLANG_DIR/llvm-ar" ]; then
