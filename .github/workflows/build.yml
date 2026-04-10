@@ -38,12 +38,13 @@ jobs:
           fetch v8
           cd v8
           git checkout ${{ env.V8_VERSION }}
-          VPYTHON_BYPASS="manually managed python not in path" gclient sync --force
+          # mac_toolchain.py 패치 후 build 서브모듈에서 커밋하여 gclient sync가 거부하지 않도록 함
+          echo "# patched: skip mac toolchain" > build/mac_toolchain.py
+          cd build && git add -A && git commit -m "patch mac_toolchain" --allow-empty && cd ..
+          VPYTHON_BYPASS="manually managed python not in path" gclient sync
 
       - name: V8 소스 패치
         run: |
-          # mac_toolchain.py가 pkg_resources를 import하지만 실제로는 Skip하므로 빈 파일로 대체
-          echo "# patched: skip mac toolchain" > $HOME/v8-build/v8/build/mac_toolchain.py
           bash patches/apply-patches.sh $HOME/v8-build/v8
 
       - name: V8 모놀리스 빌드
@@ -126,11 +127,12 @@ jobs:
           fetch v8
           cd v8
           git checkout ${{ env.V8_VERSION }}
-          VPYTHON_BYPASS="manually managed python not in path" gclient sync --force
+          echo "# patched: skip mac toolchain" > build/mac_toolchain.py
+          cd build && git add -A && git commit -m "patch mac_toolchain" --allow-empty && cd ..
+          VPYTHON_BYPASS="manually managed python not in path" gclient sync
 
       - name: V8 소스 패치
         run: |
-          echo "# patched: skip mac toolchain" > $HOME/v8-build/v8/build/mac_toolchain.py
           bash patches/apply-patches.sh $HOME/v8-build/v8
 
       - name: V8 모놀리스 빌드
