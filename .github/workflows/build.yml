@@ -330,11 +330,21 @@ jobs:
           Set-Content $p -Value $c -NoNewline
           Get-Content $p | Select-String "MSVS_VERSIONS" -Context 0,3
 
+      - name: VS 2022 경로 찾기
+        shell: pwsh
+        id: vs
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          Write-Host "VS Install Path: $vs"
+          echo "VS_INSTALL_PATH=$vs" >> $env:GITHUB_ENV
+
       - name: V8 모놀리스 빌드
         shell: cmd
         run: |
           set PATH=C:\depot_tools;%PATH%
           set GYP_MSVS_VERSION=2022
+          set vs2022_install=%VS_INSTALL_PATH%
+          set DEPOT_TOOLS_WIN_TOOLCHAIN=0
           cd /d C:\v8-build\v8
           call gn.bat gen out/release --args="is_debug=false target_cpu=\"x64\" v8_monolithic=true v8_use_external_startup_data=false is_component_build=false v8_enable_i18n_support=false treat_warnings_as_errors=false is_clang=true use_lld=false"
           call ninja.exe -C out/release v8_monolith
