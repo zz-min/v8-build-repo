@@ -307,24 +307,25 @@ jobs:
       - name: depot_tools 설치
         shell: cmd
         run: |
-          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git %USERPROFILE%\depot_tools
-          echo %USERPROFILE%\depot_tools>> %GITHUB_PATH%
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git C:\depot_tools
+          echo C:\depot_tools>> %GITHUB_PATH%
 
       - name: V8 소스 받기
         shell: cmd
         run: |
-          cd %USERPROFILE%
-          mkdir v8-build
-          cd v8-build
+          set PATH=C:\depot_tools;%PATH%
+          mkdir C:\v8-build
+          cd /d C:\v8-build
           call gclient config https://chromium.googlesource.com/v8/v8.git
           call gclient sync --revision %V8_VERSION% --no-history --shallow
 
       - name: V8 모놀리스 빌드
         shell: cmd
         run: |
-          cd %USERPROFILE%\v8-build\v8
-          call gn gen out/release --args="is_debug=false target_cpu=\"x64\" v8_monolithic=true v8_use_external_startup_data=false is_component_build=false v8_enable_i18n_support=false treat_warnings_as_errors=false is_clang=false"
-          call ninja -C out/release v8_monolith
+          set PATH=C:\depot_tools;%PATH%
+          cd /d C:\v8-build\v8
+          call gn.bat gen out/release --args="is_debug=false target_cpu=\"x64\" v8_monolithic=true v8_use_external_startup_data=false is_component_build=false v8_enable_i18n_support=false treat_warnings_as_errors=false is_clang=false"
+          call ninja.exe -C out/release v8_monolith
 
       - name: JNI 브릿지 컴파일
         shell: cmd
@@ -338,7 +339,7 @@ jobs:
             /Fo:build\windows-x64\v8impl.obj
           link /DLL /OUT:build\windows-x64\libcooconv8.dll ^
             build\windows-x64\v8impl.obj ^
-            %USERPROFILE%\v8-build\v8\out\release\obj\v8_monolith.lib ^
+            C:\v8-build\v8\out\release\obj\v8_monolith.lib ^
             userenv.lib IPHLPAPI.lib Ws2_32.lib WINMM.lib psapi.lib
 
       - name: 검증
@@ -352,4 +353,4 @@ jobs:
           name: windows-x64
           path: |
             build/windows-x64/libcooconv8.dll
-            ${{ env.USERPROFILE }}/v8-build/v8/out/release/obj/v8_monolith.lib
+            C:/v8-build/v8/out/release/obj/v8_monolith.lib
