@@ -57,11 +57,15 @@ jobs:
           ]
           EOF
 
-          # gclient sync 재시도 로직 (최대 3회)
+          # mac_toolchain.py 패치 (gclient sync 전에 적용 + 커밋)
           cd $HOME/v8-build/v8
+          echo "# patched: skip mac toolchain" > build/mac_toolchain.py
+          cd build && git add -A && git commit -m "patch mac_toolchain" --allow-empty && cd ..
+
+          # gclient sync 재시도 로직 (최대 3회)
           for i in 1 2 3; do
             echo "=== gclient sync 시도 $i/3 ==="
-            if gclient sync --no-history --shallow 2>&1; then
+            if gclient sync --no-history --shallow --with_branch_heads --revision ${{ env.V8_VERSION }} 2>&1; then
               echo "=== gclient sync 성공 ==="
               break
             fi
@@ -73,12 +77,10 @@ jobs:
             sleep 30
           done
 
-          # mac_toolchain.py 패치
-          echo "# patched: skip mac toolchain" > build/mac_toolchain.py
-          cd build && git add -A && git commit -m "patch" --allow-empty && cd ..
-
       - name: V8 소스 패치
         run: |
+          # gclient sync가 build/mac_toolchain.py를 복원했을 수 있으므로 다시 패치
+          echo "# patched: skip mac toolchain" > $HOME/v8-build/v8/build/mac_toolchain.py
           bash patches/apply-patches.sh $HOME/v8-build/v8
 
       - name: V8 모놀리스 빌드
@@ -179,10 +181,15 @@ jobs:
           ]
           EOF
 
+          # mac_toolchain.py 패치 (gclient sync 전에 적용 + 커밋)
           cd $HOME/v8-build/v8
+          echo "# patched: skip mac toolchain" > build/mac_toolchain.py
+          cd build && git add -A && git commit -m "patch mac_toolchain" --allow-empty && cd ..
+
+          # gclient sync 재시도 로직 (최대 3회)
           for i in 1 2 3; do
             echo "=== gclient sync 시도 $i/3 ==="
-            if gclient sync --no-history --shallow 2>&1; then
+            if gclient sync --no-history --shallow --with_branch_heads --revision ${{ env.V8_VERSION }} 2>&1; then
               echo "=== gclient sync 성공 ==="
               break
             fi
@@ -194,11 +201,9 @@ jobs:
             sleep 30
           done
 
-          echo "# patched: skip mac toolchain" > build/mac_toolchain.py
-          cd build && git add -A && git commit -m "patch" --allow-empty && cd ..
-
       - name: V8 소스 패치
         run: |
+          echo "# patched: skip mac toolchain" > $HOME/v8-build/v8/build/mac_toolchain.py
           bash patches/apply-patches.sh $HOME/v8-build/v8
 
       - name: V8 모놀리스 빌드
