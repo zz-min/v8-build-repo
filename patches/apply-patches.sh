@@ -40,18 +40,32 @@ if [ -d "$CLANG_DIR" ] && [[ "$OSTYPE" == "darwin"* ]]; then
     SYSTEM_CLANGPP=$(xcrun -f clang++)
     RESOURCE_DIR=$(${SYSTEM_CLANG} -print-resource-dir)
 
+    echo "  [DEBUG] SYSTEM_CLANG=$SYSTEM_CLANG"
+    echo "  [DEBUG] SYSTEM_CLANGPP=$SYSTEM_CLANGPP"
+    echo "  [DEBUG] RESOURCE_DIR=$RESOURCE_DIR"
+    echo "  [DEBUG] 래퍼 생성 전 clang 상태: $(ls -la $CLANG_DIR/clang 2>/dev/null || echo '없음')"
+    echo "  [DEBUG] 래퍼 생성 전 clang++ 상태: $(ls -la $CLANG_DIR/clang++ 2>/dev/null || echo '없음')"
+
+    # clang 래퍼 (C 컴파일러)
+    rm -f "$CLANG_DIR/clang"
     cat > "$CLANG_DIR/clang" << WRAPPER
 #!/bin/bash
 exec ${SYSTEM_CLANG} -resource-dir ${RESOURCE_DIR} -Wno-enum-constexpr-conversion "\$@"
 WRAPPER
     chmod +x "$CLANG_DIR/clang"
 
+    # clang++ 래퍼 (C++ 컴파일러)
+    rm -f "$CLANG_DIR/clang++"
     cat > "$CLANG_DIR/clang++" << WRAPPER
 #!/bin/bash
 exec ${SYSTEM_CLANGPP} -resource-dir ${RESOURCE_DIR} -Wno-enum-constexpr-conversion "\$@"
 WRAPPER
     chmod +x "$CLANG_DIR/clang++"
 
+    echo "  [DEBUG] 래퍼 생성 후 clang 내용:"
+    cat "$CLANG_DIR/clang" | head -3
+    echo "  [DEBUG] 래퍼 생성 후 clang++ 내용:"
+    cat "$CLANG_DIR/clang++" | head -3
     echo "  [OK] macOS 시스템 clang/clang++ 래퍼 생성"
 
     # llvm-ar 심볼릭 링크 (없으면 생성)
