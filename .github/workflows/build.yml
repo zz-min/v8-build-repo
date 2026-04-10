@@ -288,6 +288,9 @@ jobs:
     if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows-x64' }}
     runs-on: windows-latest
     timeout-minutes: 180
+    env:
+      DEPOT_TOOLS_WIN_TOOLCHAIN: '0'    # Google 내부 toolchain 대신 로컬 Visual Studio 사용
+      GYP_MSVS_VERSION: '2022'
     steps:
       - uses: actions/checkout@v4
 
@@ -310,12 +313,11 @@ jobs:
       - name: V8 소스 받기
         shell: cmd
         run: |
-          mkdir %USERPROFILE%\v8-build
-          cd %USERPROFILE%\v8-build
-          call fetch v8
-          cd v8
-          call git checkout %V8_VERSION%
-          call gclient sync
+          cd %USERPROFILE%
+          mkdir v8-build
+          cd v8-build
+          call gclient config https://chromium.googlesource.com/v8/v8.git
+          call gclient sync --revision %V8_VERSION% --no-history --shallow
 
       - name: V8 모놀리스 빌드
         shell: cmd
