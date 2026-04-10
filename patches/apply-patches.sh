@@ -46,11 +46,11 @@ if [ -d "$CLANG_DIR" ] && [[ "$OSTYPE" == "darwin"* ]]; then
     echo "  [DEBUG] 래퍼 생성 전 clang 상태: $(ls -la $CLANG_DIR/clang 2>/dev/null || echo '없음')"
     echo "  [DEBUG] 래퍼 생성 전 clang++ 상태: $(ls -la $CLANG_DIR/clang++ 2>/dev/null || echo '없음')"
 
-    # clang 래퍼 (C 컴파일러)
+    # clang 래퍼 (C 컴파일러) — exec -a로 argv[0] 보존
     rm -f "$CLANG_DIR/clang"
     cat > "$CLANG_DIR/clang" << WRAPPER
 #!/bin/bash
-exec ${SYSTEM_CLANG} -resource-dir ${RESOURCE_DIR} -Wno-enum-constexpr-conversion "\$@"
+exec -a clang ${SYSTEM_CLANG} -resource-dir ${RESOURCE_DIR} -Wno-enum-constexpr-conversion "\$@"
 WRAPPER
     chmod +x "$CLANG_DIR/clang"
 
@@ -58,7 +58,7 @@ WRAPPER
     rm -f "$CLANG_DIR/clang++"
     cat > "$CLANG_DIR/clang++" << WRAPPER
 #!/bin/bash
-exec ${SYSTEM_CLANGPP} -resource-dir ${RESOURCE_DIR} -Wno-enum-constexpr-conversion "\$@"
+exec -a clang++ ${SYSTEM_CLANGPP} -resource-dir ${RESOURCE_DIR} -Wno-enum-constexpr-conversion "\$@"
 WRAPPER
     chmod +x "$CLANG_DIR/clang++"
 
