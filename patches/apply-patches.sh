@@ -101,22 +101,23 @@ fi
 
 # ── 3. Linux: 시스템 clang 래퍼 생성 ──
 if [ -d "$CLANG_DIR" ] && [[ "$OSTYPE" == "linux"* ]]; then
-    if [ -f "$CLANG_DIR/clang" ] && [ ! -L "$CLANG_DIR/clang" ] && [ ! -f "$CLANG_DIR/clang.orig" ]; then
-        mv "$CLANG_DIR/clang" "$CLANG_DIR/clang.orig"
-    fi
+    [ -f "$CLANG_DIR/clang" ] && mv -f "$CLANG_DIR/clang" "$CLANG_DIR/clang.orig" 2>/dev/null || true
+    [ -f "$CLANG_DIR/clang++" ] && mv -f "$CLANG_DIR/clang++" "$CLANG_DIR/clang++.orig" 2>/dev/null || true
 
     SYSTEM_CLANG=$(which clang 2>/dev/null || echo "/usr/bin/clang")
     SYSTEM_CLANGPP=$(which clang++ 2>/dev/null || echo "/usr/bin/clang++")
 
+    rm -f "$CLANG_DIR/clang"
     cat > "$CLANG_DIR/clang" << WRAPPER
 #!/bin/bash
-exec ${SYSTEM_CLANG} -Wno-enum-constexpr-conversion "\$@"
+exec -a clang ${SYSTEM_CLANG} -Wno-enum-constexpr-conversion "\$@"
 WRAPPER
     chmod +x "$CLANG_DIR/clang"
 
+    rm -f "$CLANG_DIR/clang++"
     cat > "$CLANG_DIR/clang++" << WRAPPER
 #!/bin/bash
-exec ${SYSTEM_CLANGPP} -Wno-enum-constexpr-conversion "\$@"
+exec -a clang++ ${SYSTEM_CLANGPP} -Wno-enum-constexpr-conversion "\$@"
 WRAPPER
     chmod +x "$CLANG_DIR/clang++"
 
