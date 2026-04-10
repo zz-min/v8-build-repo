@@ -13,15 +13,31 @@ echo "[패치] V8 소스 패치 적용 중..."
 ZUTIL_H="$V8_DIR/third_party/zlib/zutil.h"
 if [ -f "$ZUTIL_H" ]; then
     if grep -q 'define fdopen' "$ZUTIL_H"; then
-        sed -i.bak '/#if defined(MACOS) || defined(TARGET_OS_MAC)/,/#endif/{
-            /#if defined(MACOS) || defined(TARGET_OS_MAC)/!{
-                /#  define OS_CODE  7/!{
-                    /#endif/!d
-                    /#endif/d
-                }
-            }
-        }' "$ZUTIL_H"
-        rm -f "${ZUTIL_H}.bak"
+        # python으로 정확하게 패치 (sed 호환성 문제 회피)
+        python3 -c "
+import re
+with open('$ZUTIL_H', 'r') as f:
+    content = f.read()
+# fdopen 매크로 블록만 제거하고 OS_CODE 정의는 유지
+old = '''#if defined(MACOS) || defined(TARGET_OS_MAC)
+#  define OS_CODE  7
+#  ifndef Z_SOLO
+#    if defined(__MWERKS__) && __dest_os != __be_os && __dest_os != __win32_os
+#      include <unix.h> /* for fdopen */
+#    else
+#      ifndef fdopen
+#        define fdopen(fd,mode) NULL /* No fdopen() */
+#      endif
+#    endif
+#  endif
+#endif'''
+new = '''#if defined(MACOS) || defined(TARGET_OS_MAC)
+#  define OS_CODE  7
+#endif'''
+content = content.replace(old, new)
+with open('$ZUTIL_H', 'w') as f:
+    f.write(content)
+"
         echo "  [OK] zlib zutil.h fdopen 매크로 제거"
     else
         echo "  [SKIP] zlib zutil.h 이미 패치됨"
