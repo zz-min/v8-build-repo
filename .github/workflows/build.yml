@@ -319,10 +319,16 @@ jobs:
           call gclient config https://chromium.googlesource.com/v8/v8.git
           call gclient sync --revision %V8_VERSION% --no-history --shallow
 
+      - name: vs_toolchain.py 패치 (VS 2022 지원 추가)
+        shell: cmd
+        run: |
+          python -c "import re; p='C:/v8-build/v8/build/vs_toolchain.py'; c=open(p).read(); c=c.replace(\"['16.0', '15.0']\", \"['17.0', '16.0', '15.0']\"); c=c.replace(\"version_as_year = {'15.0': '2017', '16.0': '2019'}\", \"version_as_year = {'15.0': '2017', '16.0': '2019', '17.0': '2022'}\"); open(p,'w').write(c)"
+
       - name: V8 모놀리스 빌드
         shell: cmd
         run: |
           set PATH=C:\depot_tools;%PATH%
+          set GYP_MSVS_VERSION=2022
           cd /d C:\v8-build\v8
           call gn.bat gen out/release --args="is_debug=false target_cpu=\"x64\" v8_monolithic=true v8_use_external_startup_data=false is_component_build=false v8_enable_i18n_support=false treat_warnings_as_errors=false is_clang=false"
           call ninja.exe -C out/release v8_monolith
