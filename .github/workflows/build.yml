@@ -336,7 +336,7 @@ jobs:
           set PATH=C:\depot_tools;%PATH%
           set GYP_MSVS_VERSION=2022
           cd /d C:\v8-build\v8
-          call gn.bat gen out/release --args="is_debug=false target_cpu=\"x64\" v8_monolithic=true v8_use_external_startup_data=false is_component_build=false v8_enable_i18n_support=false treat_warnings_as_errors=false is_clang=false"
+          call gn.bat gen out/release --args="is_debug=false target_cpu=\"x64\" v8_monolithic=true v8_use_external_startup_data=false is_component_build=false v8_enable_i18n_support=false treat_warnings_as_errors=false is_clang=true use_lld=false"
           call ninja.exe -C out/release v8_monolith
 
       - name: JNI 브릿지 컴파일
