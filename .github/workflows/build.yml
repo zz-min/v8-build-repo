@@ -35,11 +35,10 @@ jobs:
 
       - name: V8 소스 받기
         run: |
-          mkdir -p $HOME/v8-build && cd $HOME/v8-build
-          fetch v8
-          cd v8
-          git checkout ${{ env.V8_VERSION }}
-          gclient sync
+          cd $HOME
+          mkdir v8-build && cd v8-build
+          gclient config https://chromium.googlesource.com/v8/v8.git
+          gclient sync --revision ${{ env.V8_VERSION }} --no-history --shallow
 
       - name: V8 소스 패치
         run: |
@@ -124,11 +123,10 @@ jobs:
 
       - name: V8 소스 받기
         run: |
-          mkdir -p $HOME/v8-build && cd $HOME/v8-build
-          fetch v8
-          cd v8
-          git checkout ${{ env.V8_VERSION }}
-          gclient sync
+          cd $HOME
+          mkdir v8-build && cd v8-build
+          gclient config https://chromium.googlesource.com/v8/v8.git
+          gclient sync --revision ${{ env.V8_VERSION }} --no-history --shallow
 
       - name: V8 소스 패치
         run: |
@@ -220,11 +218,10 @@ jobs:
 
       - name: V8 소스 받기
         run: |
-          mkdir -p $HOME/v8-build && cd $HOME/v8-build
-          fetch v8
-          cd v8
-          git checkout ${{ env.V8_VERSION }}
-          gclient sync
+          cd $HOME
+          mkdir v8-build && cd v8-build
+          gclient config https://chromium.googlesource.com/v8/v8.git
+          gclient sync --revision ${{ env.V8_VERSION }} --no-history --shallow
 
       - name: V8 소스 패치
         run: |
