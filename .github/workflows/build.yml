@@ -23,13 +23,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-
       - name: 도구 설치
         run: |
           brew install ninja llvm
+          pip3 install --break-system-packages setuptools
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
           echo "$HOME/depot_tools" >> $GITHUB_PATH
 
@@ -39,6 +36,9 @@ jobs:
           fetch v8
           cd v8
           git checkout ${{ env.V8_VERSION }}
+          # mac_toolchain.py 패치 후 build 서브모듈에서 커밋하여 gclient sync가 거부하지 않도록 함
+          echo "# patched: skip mac toolchain" > build/mac_toolchain.py
+          cd build && git add -A && git commit -m "patch" --allow-empty && cd ..
           gclient sync
 
       - name: V8 소스 패치
@@ -111,13 +111,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-
       - name: 도구 설치
         run: |
           brew install ninja llvm
+          pip3 install --break-system-packages setuptools
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
           echo "$HOME/depot_tools" >> $GITHUB_PATH
 
@@ -127,6 +124,8 @@ jobs:
           fetch v8
           cd v8
           git checkout ${{ env.V8_VERSION }}
+          echo "# patched: skip mac toolchain" > build/mac_toolchain.py
+          cd build && git add -A && git commit -m "patch" --allow-empty && cd ..
           gclient sync
 
       - name: V8 소스 패치
