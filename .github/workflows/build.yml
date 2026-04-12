@@ -333,7 +333,14 @@ jobs:
           $c2 = Get-Content $p2 -Raw
           $c2 = $c2 -replace "VC/vcvarsall\.bat", "VC/Auxiliary/Build/vcvarsall.bat"
           Set-Content $p2 -Value $c2 -NoNewline
-          Write-Host "[OK] vs_toolchain.py + setup_toolchain.py 패치 완료"
+
+          # 3. jinja2/tests.py: collections.Mapping → collections.abc.Mapping (Python 3.10+ 호환)
+          $p3 = 'C:\v8-build\v8\third_party\jinja2\tests.py'
+          $c3 = Get-Content $p3 -Raw
+          $c3 = $c3 -replace "from collections import Mapping", "from collections.abc import Mapping"
+          Set-Content $p3 -Value $c3 -NoNewline
+
+          Write-Host "[OK] vs_toolchain.py + setup_toolchain.py + jinja2 패치 완료"
 
       - name: VS 2022 경로 찾기
         shell: pwsh
