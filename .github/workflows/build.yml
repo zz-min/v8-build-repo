@@ -350,14 +350,13 @@ jobs:
       - name: V8 모놀리스 빌드
         shell: cmd
         run: |
+          call "%VS_INSTALL_PATH%\VC\Auxiliary\Build\vcvarsall.bat" amd64
           set PATH=C:\depot_tools;%PATH%
           set GYP_MSVS_VERSION=2022
           set vs2022_install=%VS_INSTALL_PATH%
           set DEPOT_TOOLS_WIN_TOOLCHAIN=0
-          set WINDOWSSDKDIR=%WINSDK_DIR%\
-          set WindowsSDKVersion=%WINSDK_VER%\
           cd /d C:\v8-build\v8
-          call gn.bat gen out/release --args="is_debug=false target_cpu=\"x64\" v8_monolithic=true v8_use_external_startup_data=false is_component_build=false v8_enable_i18n_support=false treat_warnings_as_errors=false is_clang=true use_lld=false windows_sdk_path=\"%WINSDK_DIR%\""
+          call gn.bat gen out/release --args="is_debug=false target_cpu=\"x64\" v8_monolithic=true v8_use_external_startup_data=false is_component_build=false v8_enable_i18n_support=false treat_warnings_as_errors=false is_clang=true use_lld=false"
           call ninja.exe -C out/release v8_monolith
 
       - name: JNI 브릿지 컴파일
