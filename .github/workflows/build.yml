@@ -191,93 +191,78 @@ jobs:
   linux-x86_64:
     if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'linux-x86_64' }}
     runs-on: ubuntu-latest
-    container:
-      image: centos:7
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 
-      - name: 도구 설치 (CentOS 7)
+      - name: Docker로 CentOS 7 빌드 (glibc 2.17 호환)
         run: |
-          # CentOS 7 vault repo로 변경 (EOL 대응)
-          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*.repo
-          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*.repo
-          yum install -y centos-release-scl || true
-          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-SCLo-*.repo 2>/dev/null || true
-          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-SCLo-*.repo 2>/dev/null || true
-          # 개발 도구 설치
-          yum install -y git python3 ninja-build gcc gcc-c++ make curl which
-          # depot_tools
-          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
-          echo "$HOME/depot_tools" >> $GITHUB_PATH
-          # pip setuptools
-          pip3 install setuptools
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -e V8_VERSION=${{ env.V8_VERSION }} \
+            centos:7 \
+            /bin/bash -c '
+              set -e
 
-      - name: JDK 설치
-        run: |
-          cd /tmp
-          curl -LO https://cdn.azul.com/zulu/bin/zulu17.54.21-ca-jdk17.0.13-linux_x64.tar.gz
-          tar xzf zulu17*.tar.gz -C /opt/
-          echo "JAVA_HOME=/opt/zulu17.54.21-ca-jdk17.0.13-linux_x64" >> $GITHUB_ENV
+              # === CentOS 7 vault repo 설정 (EOL 대응) ===
+              sed -i "s/mirrorlist/#mirrorlist/g" /etc/yum.repos.d/CentOS-*.repo
+              sed -i "s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g" /etc/yum.repos.d/CentOS-*.repo
 
-      - name: V8 소스 받기
-        run: |
-          cd $HOME
-          mkdir v8-build && cd v8-build
-          gclient config https://chromium.googlesource.com/v8/v8.git
-          gclient sync --revision ${{ env.V8_VERSION }} --no-history --shallow
+              # === 도구 설치 ===
+              yum install -y git python3 gcc gcc-c++ make curl which tar xz
+              pip3 install setuptools
 
-      - name: V8 소스 패치
-        run: |
-          bash patches/apply-patches.sh $HOME/v8-build/v8
+              # === depot_tools ===
+              git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git /opt/depot_tools
+              export PATH=/opt/depot_tools:$PATH
 
-      - name: V8 모놀리스 빌드
-        run: |
-          cd $HOME/v8-build/v8
-          gn gen out/release --args='
-            is_debug=false
-            target_cpu="x64"
-            host_cpu="x64"
-            target_os="linux"
-            v8_monolithic=true
-            v8_use_external_startup_data=false
-            is_component_build=false
-            use_custom_libcxx=false
-            v8_enable_i18n_support=false
-            treat_warnings_as_errors=false
-            clang_use_chrome_plugins=false
-          '
-          ninja -C out/release v8_monolith
+              # === JDK 설치 ===
+              cd /tmp
+              curl -LO https://cdn.azul.com/zulu/bin/zulu17.54.21-ca-jdk17.0.13-linux_x64.tar.gz
+              tar xzf zulu17*.tar.gz -C /opt/
+              export JAVA_HOME=/opt/zulu17.54.21-ca-jdk17.0.13-linux_x64
 
-      - name: JNI 브릿지 컴파일
-        run: |
-          mkdir -p build/linux-x86_64
-          $HOME/v8-build/v8/third_party/llvm-build/Release+Asserts/bin/clang++ \
-            -I$JAVA_HOME/include \
-            -I$JAVA_HOME/include/linux \
-            -Iv8-include \
-            -Ijni \
-            -fPIC -std=c++17 -O3 -DNDEBUG \
-            -DV8_COMPRESS_POINTERS \
-            -DV8_31BIT_SMIS_ON_64BIT_ARCH \
-            -w \
-            -c jni/kr_co_coocon_v8_V8Impl.cpp \
-            -o build/linux-x86_64/v8impl.o
+              # === V8 소스 받기 ===
+              cd /root
+              mkdir v8-build && cd v8-build
+              gclient config https://chromium.googlesource.com/v8/v8.git
+              gclient sync --revision $V8_VERSION --no-history --shallow
 
-          $HOME/v8-build/v8/third_party/llvm-build/Release+Asserts/bin/clang++ \
-            -shared \
-            -o build/linux-x86_64/libcooconv8.so \
-            build/linux-x86_64/v8impl.o \
-            $HOME/v8-build/v8/out/release/obj/libv8_monolith.a \
-            -lstdc++ -lrt \
-            -s
+              # === V8 소스 패치 ===
+              bash /workspace/patches/apply-patches.sh /root/v8-build/v8
 
-      - name: 검증
-        run: |
-          file build/linux-x86_64/libcooconv8.so
-          ls -lh build/linux-x86_64/libcooconv8.so
-          # glibc 호환성 확인
-          objdump -T build/linux-x86_64/libcooconv8.so | grep GLIBC | sed 's/.*GLIBC_//' | sort -V | tail -1 | xargs -I{} echo "최소 요구 GLIBC: {}"
+              # === V8 모놀리스 빌드 ===
+              cd /root/v8-build/v8
+              gn gen out/release --args="is_debug=false target_cpu=\"x64\" host_cpu=\"x64\" target_os=\"linux\" v8_monolithic=true v8_use_external_startup_data=false is_component_build=false use_custom_libcxx=false v8_enable_i18n_support=false treat_warnings_as_errors=false clang_use_chrome_plugins=false"
+              ninja -C out/release v8_monolith
+
+              # === JNI 브릿지 컴파일 ===
+              mkdir -p /workspace/build/linux-x86_64
+              /root/v8-build/v8/third_party/llvm-build/Release+Asserts/bin/clang++ \
+                -I$JAVA_HOME/include \
+                -I$JAVA_HOME/include/linux \
+                -I/workspace/v8-include \
+                -I/workspace/jni \
+                -fPIC -std=c++17 -O3 -DNDEBUG \
+                -DV8_COMPRESS_POINTERS \
+                -DV8_31BIT_SMIS_ON_64BIT_ARCH \
+                -w \
+                -c /workspace/jni/kr_co_coocon_v8_V8Impl.cpp \
+                -o /workspace/build/linux-x86_64/v8impl.o
+
+              /root/v8-build/v8/third_party/llvm-build/Release+Asserts/bin/clang++ \
+                -shared \
+                -o /workspace/build/linux-x86_64/libcooconv8.so \
+                /workspace/build/linux-x86_64/v8impl.o \
+                /root/v8-build/v8/out/release/obj/libv8_monolith.a \
+                -lstdc++ -lrt -ldl -lpthread \
+                -s
+
+              # === 검증 ===
+              file /workspace/build/linux-x86_64/libcooconv8.so
+              ls -lh /workspace/build/linux-x86_64/libcooconv8.so
+              echo "최소 요구 GLIBC: $(objdump -T /workspace/build/linux-x86_64/libcooconv8.so | grep GLIBC | sed "s/.*GLIBC_//" | sort -V | tail -1)"
+            '
 
       - name: 산출물 업로드
         uses: actions/upload-artifact@v4
