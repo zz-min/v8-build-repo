@@ -395,7 +395,7 @@ jobs:
             -IC:\v8-build\v8\buildtools\third_party\libc++abi\trunk\include ^
             /c jni\kr_co_coocon_v8_V8Impl.cpp ^
             /Fobuild\windows-x64\v8impl.obj
-          %LLD_LINK% /DLL /OUT:build\windows-x64\libcooconv8.dll ^
+          %LLD_LINK% /DLL /OUT:build\windows-x64\libcooconv8.dll /NODEFAULTLIB:libc++ ^
             build\windows-x64\v8impl.obj ^
             C:\v8-build\v8\out\release\obj\v8_monolith.lib ^
             C:\v8-build\v8\out\release\obj\buildtools\third_party\libc++\libc++\*.obj ^
