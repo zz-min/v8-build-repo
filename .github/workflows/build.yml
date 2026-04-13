@@ -264,7 +264,14 @@ jobs:
               tar xzf zulu17*.tar.gz -C /opt/
               export JAVA_HOME=/opt/zulu17.54.21-ca-jdk17.0.13-linux_x64
 
-              CLANG=/v8-build/v8/third_party/llvm-build/Release+Asserts/bin/clang++
+              # 패치된 래퍼를 번들 원본으로 복원 (래퍼는 호스트 Ubuntu 경로를 참조하므로 Docker 내에서 사용 불가)
+              CLANG_DIR=/v8-build/v8/third_party/llvm-build/Release+Asserts/bin
+              if [ -f "$CLANG_DIR/clang.orig" ]; then
+                cp -f "$CLANG_DIR/clang.orig" "$CLANG_DIR/clang"
+                rm -f "$CLANG_DIR/clang++"
+                ln -s clang "$CLANG_DIR/clang++"
+              fi
+              CLANG=$CLANG_DIR/clang++
               mkdir -p /workspace/build/linux-x86_64
 
               $CLANG \
