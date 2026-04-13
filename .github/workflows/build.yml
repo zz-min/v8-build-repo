@@ -383,13 +383,13 @@ jobs:
             -Iv8-include -Ijni ^
             -IC:\v8-build\v8\buildtools\third_party\libc++\trunk\include ^
             -IC:\v8-build\v8\buildtools\third_party\libc++abi\trunk\include ^
+            -IC:\v8-build\v8\out\release\gen ^
             /c jni\kr_co_coocon_v8_V8Impl.cpp ^
             /Fobuild\windows-x64\v8impl.obj
-          echo === libc++ 파일 확인 ===
-          dir /s /b C:\v8-build\v8\out\release\obj\buildtools\third_party\libc++\*
           %LLD_LINK% /DLL /OUT:build\windows-x64\libcooconv8.dll ^
             build\windows-x64\v8impl.obj ^
             C:\v8-build\v8\out\release\obj\v8_monolith.lib ^
+            C:\v8-build\v8\out\release\obj\buildtools\third_party\libc++\libc++\*.obj ^
             userenv.lib IPHLPAPI.lib Ws2_32.lib WINMM.lib psapi.lib
 
       - name: 검증
