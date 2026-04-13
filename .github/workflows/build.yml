@@ -376,14 +376,25 @@ jobs:
         run: |
           call "%VS_INSTALL_PATH%\VC\Auxiliary\Build\vcvarsall.bat" amd64
           mkdir build\windows-x64
-          REM MSVC로 컴파일 (JNI 코드는 V8 API만 호출, STL 직접 사용 없음)
-          cl /std:c++17 /O2 /DNDEBUG /DV8_COMPRESS_POINTERS /DV8_31BIT_SMIS_ON_64BIT_ARCH /w ^
-            /I"%JAVA_HOME%\include" /I"%JAVA_HOME%\include\win32" ^
-            /Iv8-include /Ijni ^
+          set CLANG_CL=C:\v8-build\v8\third_party\llvm-build\Release+Asserts\bin\clang-cl.exe
+          set LLD_LINK=C:\v8-build\v8\third_party\llvm-build\Release+Asserts\bin\lld-link.exe
+          REM __config_site 생성 (V8 빌드에서 사용하는 libc++ 설정)
+          (
+            echo #define _LIBCPP_HAS_NO_ALIGNED_ALLOCATION
+            echo #define _LIBCPP_ABI_UNSTABLE
+            echo #define _LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS
+            echo #define _LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS
+            echo #define _LIBCPP_ENABLE_NODISCARD
+            echo #define _LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS
+          ) > C:\v8-build\v8\buildtools\third_party\libc++\trunk\include\__config_site
+          REM clang-cl로 컴파일 (V8과 동일한 libc++ 사용)
+          %CLANG_CL% /std:c++17 /O2 /DNDEBUG /DV8_COMPRESS_POINTERS /DV8_31BIT_SMIS_ON_64BIT_ARCH /w ^
+            -I"%JAVA_HOME%\include" -I"%JAVA_HOME%\include\win32" ^
+            -Iv8-include -Ijni ^
+            -IC:\v8-build\v8\buildtools\third_party\libc++\trunk\include ^
+            -IC:\v8-build\v8\buildtools\third_party\libc++abi\trunk\include ^
             /c jni\kr_co_coocon_v8_V8Impl.cpp ^
             /Fobuild\windows-x64\v8impl.obj
-          REM lld-link로 링크 (v8_monolith + libc++ obj 포함)
-          set LLD_LINK=C:\v8-build\v8\third_party\llvm-build\Release+Asserts\bin\lld-link.exe
           %LLD_LINK% /DLL /OUT:build\windows-x64\libcooconv8.dll ^
             build\windows-x64\v8impl.obj ^
             C:\v8-build\v8\out\release\obj\v8_monolith.lib ^
