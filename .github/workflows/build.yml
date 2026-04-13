@@ -410,6 +410,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-x64
-          path: |
-            build/windows-x64/libcooconv8.dll
-            C:/v8-build/v8/out/release/obj/v8_monolith.lib
+          path: build/windows-x64/libcooconv8.dll
