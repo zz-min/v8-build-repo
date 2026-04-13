@@ -264,32 +264,23 @@ jobs:
               tar xzf zulu17*.tar.gz -C /opt/
               export JAVA_HOME=/opt/zulu17.54.21-ca-jdk17.0.13-linux_x64
 
-              # 패치된 래퍼를 번들 원본으로 복원 (래퍼는 호스트 Ubuntu 경로를 참조하므로 Docker 내에서 사용 불가)
-              CLANG_DIR=/v8-build/v8/third_party/llvm-build/Release+Asserts/bin
-              if [ -f "$CLANG_DIR/clang.orig" ]; then
-                cp -f "$CLANG_DIR/clang.orig" "$CLANG_DIR/clang"
-                rm -f "$CLANG_DIR/clang++"
-                ln -s clang "$CLANG_DIR/clang++"
-              fi
-              CLANG=$CLANG_DIR/clang++
+              # CentOS 7 시스템 g++로 컴파일 (번들 clang은 glibc 2.18 필요하므로 사용 불가)
               mkdir -p /workspace/build/linux-x86_64
 
-              $CLANG \
+              g++ \
                 -I$JAVA_HOME/include \
                 -I$JAVA_HOME/include/linux \
                 -I/workspace/v8-include \
                 -I/workspace/jni \
-                --sysroot=/ \
-                -fPIC -std=c++17 -O3 -DNDEBUG \
+                -fPIC -std=c++14 -O3 -DNDEBUG \
                 -DV8_COMPRESS_POINTERS \
                 -DV8_31BIT_SMIS_ON_64BIT_ARCH \
                 -w \
                 -c /workspace/jni/kr_co_coocon_v8_V8Impl.cpp \
                 -o /workspace/build/linux-x86_64/v8impl.o
 
-              $CLANG \
+              g++ \
                 -shared \
-                --sysroot=/ \
                 -o /workspace/build/linux-x86_64/libcooconv8.so \
                 /workspace/build/linux-x86_64/v8impl.o \
                 /v8-build/v8/out/release/obj/libv8_monolith.a \
