@@ -399,7 +399,7 @@ jobs:
             build\windows-x64\v8impl.obj ^
             C:\v8-build\v8\out\release\obj\v8_monolith.lib ^
             C:\v8-build\v8\out\release\obj\buildtools\third_party\libc++\libc++\*.obj ^
-            userenv.lib IPHLPAPI.lib Ws2_32.lib WINMM.lib psapi.lib advapi32.lib dbghelp.lib
+            userenv.lib IPHLPAPI.lib Ws2_32.lib WINMM.lib psapi.lib advapi32.lib dbghelp.lib msvcprt.lib
 
       - name: 검증
         shell: cmd
