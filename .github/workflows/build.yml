@@ -256,7 +256,12 @@ jobs:
               # CentOS 7 vault repo
               sed -i "s/mirrorlist/#mirrorlist/g" /etc/yum.repos.d/CentOS-*.repo
               sed -i "s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g" /etc/yum.repos.d/CentOS-*.repo
-              yum install -y gcc gcc-c++ tar curl which -q
+              yum install -y gcc gcc-c++ tar curl which centos-release-scl -q 2>/dev/null || true
+              # vault repo for SCL
+              sed -i "s/mirrorlist/#mirrorlist/g" /etc/yum.repos.d/CentOS-SCLo-*.repo 2>/dev/null || true
+              sed -i "s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g" /etc/yum.repos.d/CentOS-SCLo-*.repo 2>/dev/null || true
+              yum install -y devtoolset-11-gcc-c++ -q 2>/dev/null || yum install -y devtoolset-9-gcc-c++ -q 2>/dev/null || yum install -y devtoolset-8-gcc-c++ -q 2>/dev/null || true
+              source /opt/rh/devtoolset-*/enable 2>/dev/null || true
 
               # JDK
               cd /tmp
@@ -272,7 +277,7 @@ jobs:
                 -I$JAVA_HOME/include/linux \
                 -I/workspace/v8-include \
                 -I/workspace/jni \
-                -fPIC -std=c++14 -O3 -DNDEBUG \
+                -fPIC -std=c++17 -O3 -DNDEBUG \
                 -DV8_COMPRESS_POINTERS \
                 -DV8_31BIT_SMIS_ON_64BIT_ARCH \
                 -w \
