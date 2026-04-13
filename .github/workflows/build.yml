@@ -256,12 +256,16 @@ jobs:
               # CentOS 7 vault repo
               sed -i "s/mirrorlist/#mirrorlist/g" /etc/yum.repos.d/CentOS-*.repo
               sed -i "s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g" /etc/yum.repos.d/CentOS-*.repo
-              yum install -y gcc gcc-c++ tar curl which centos-release-scl -q 2>/dev/null || true
+              yum install -y gcc gcc-c++ tar curl which centos-release-scl
               # vault repo for SCL
               sed -i "s/mirrorlist/#mirrorlist/g" /etc/yum.repos.d/CentOS-SCLo-*.repo 2>/dev/null || true
               sed -i "s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g" /etc/yum.repos.d/CentOS-SCLo-*.repo 2>/dev/null || true
-              yum install -y devtoolset-11-gcc-c++ -q 2>/dev/null || yum install -y devtoolset-9-gcc-c++ -q 2>/dev/null || yum install -y devtoolset-8-gcc-c++ -q 2>/dev/null || true
-              source /opt/rh/devtoolset-*/enable 2>/dev/null || true
+              yum install -y devtoolset-11-gcc-c++ || yum install -y devtoolset-9-gcc-c++ || yum install -y devtoolset-8-gcc-c++
+              # devtoolset 활성화
+              DTS=$(ls -d /opt/rh/devtoolset-* 2>/dev/null | sort -V | tail -1)
+              echo "Using devtoolset: $DTS"
+              source $DTS/enable
+              g++ --version
 
               # JDK
               cd /tmp
@@ -269,7 +273,7 @@ jobs:
               tar xzf zulu17*.tar.gz -C /opt/
               export JAVA_HOME=/opt/zulu17.54.21-ca-jdk17.0.13-linux_x64
 
-              # CentOS 7 시스템 g++로 컴파일 (번들 clang은 glibc 2.18 필요하므로 사용 불가)
+              # devtoolset g++로 컴파일 (glibc는 시스템 2.17 유지)
               mkdir -p /workspace/build/linux-x86_64
 
               g++ \
