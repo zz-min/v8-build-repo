@@ -256,7 +256,7 @@ jobs:
               # CentOS 7 vault repo
               sed -i "s/mirrorlist/#mirrorlist/g" /etc/yum.repos.d/CentOS-*.repo
               sed -i "s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g" /etc/yum.repos.d/CentOS-*.repo
-              yum install -y gcc gcc-c++ tar curl which centos-release-scl
+              yum install -y gcc gcc-c++ tar curl which file binutils centos-release-scl
               # vault repo for ALL SCL repos
               for f in /etc/yum.repos.d/CentOS-SCL*.repo; do
                 [ -f "$f" ] && sed -i "s/mirrorlist/#mirrorlist/g" "$f"
