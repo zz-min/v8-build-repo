@@ -257,9 +257,12 @@ jobs:
               sed -i "s/mirrorlist/#mirrorlist/g" /etc/yum.repos.d/CentOS-*.repo
               sed -i "s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g" /etc/yum.repos.d/CentOS-*.repo
               yum install -y gcc gcc-c++ tar curl which centos-release-scl
-              # vault repo for SCL
-              sed -i "s/mirrorlist/#mirrorlist/g" /etc/yum.repos.d/CentOS-SCLo-*.repo 2>/dev/null || true
-              sed -i "s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g" /etc/yum.repos.d/CentOS-SCLo-*.repo 2>/dev/null || true
+              # vault repo for ALL SCL repos
+              for f in /etc/yum.repos.d/CentOS-SCL*.repo; do
+                [ -f "$f" ] && sed -i "s/mirrorlist/#mirrorlist/g" "$f"
+                [ -f "$f" ] && sed -i "s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g" "$f"
+                [ -f "$f" ] && sed -i "s|# baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g" "$f"
+              done
               yum install -y devtoolset-11-gcc-c++ || yum install -y devtoolset-9-gcc-c++ || yum install -y devtoolset-8-gcc-c++
               # devtoolset 활성화
               DTS=$(ls -d /opt/rh/devtoolset-* 2>/dev/null | sort -V | tail -1)
