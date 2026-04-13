@@ -377,17 +377,19 @@ jobs:
           call "%VS_INSTALL_PATH%\VC\Auxiliary\Build\vcvarsall.bat" amd64
           mkdir build\windows-x64
           set CLANG_CL=C:\v8-build\v8\third_party\llvm-build\Release+Asserts\bin\clang-cl.exe
+          set LLD_LINK=C:\v8-build\v8\third_party\llvm-build\Release+Asserts\bin\lld-link.exe
           %CLANG_CL% /std:c++17 /O2 /DNDEBUG /DV8_COMPRESS_POINTERS /DV8_31BIT_SMIS_ON_64BIT_ARCH /w ^
             -I"%JAVA_HOME%\include" -I"%JAVA_HOME%\include\win32" ^
             -Iv8-include -Ijni ^
             -IC:\v8-build\v8\buildtools\third_party\libc++\trunk\include ^
             -IC:\v8-build\v8\buildtools\third_party\libc++abi\trunk\include ^
             /c jni\kr_co_coocon_v8_V8Impl.cpp ^
-            /Fo:build\windows-x64\v8impl.obj
-          lld-link /DLL /OUT:build\windows-x64\libcooconv8.dll ^
+            /Fobuild\windows-x64\v8impl.obj
+          echo === libc++ 파일 확인 ===
+          dir /s /b C:\v8-build\v8\out\release\obj\buildtools\third_party\libc++\*
+          %LLD_LINK% /DLL /OUT:build\windows-x64\libcooconv8.dll ^
             build\windows-x64\v8impl.obj ^
             C:\v8-build\v8\out\release\obj\v8_monolith.lib ^
-            C:\v8-build\v8\out\release\obj\buildtools\third_party\libc++\libc++.lib ^
             userenv.lib IPHLPAPI.lib Ws2_32.lib WINMM.lib psapi.lib
 
       - name: 검증
