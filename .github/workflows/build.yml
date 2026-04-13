@@ -376,24 +376,19 @@ jobs:
         run: |
           call "%VS_INSTALL_PATH%\VC\Auxiliary\Build\vcvarsall.bat" amd64
           mkdir build\windows-x64
-          set CLANG_CL=C:\v8-build\v8\third_party\llvm-build\Release+Asserts\bin\clang-cl.exe
-          set LLD_LINK=C:\v8-build\v8\third_party\llvm-build\Release+Asserts\bin\lld-link.exe
-          REM __config_site가 없으면 빈 파일 생성 (V8 9.3에서는 미생성)
-          if not exist "C:\v8-build\v8\buildtools\third_party\libc++\trunk\include\__config_site" (
-            echo // empty > C:\v8-build\v8\buildtools\third_party\libc++\trunk\include\__config_site
-          )
-          %CLANG_CL% /std:c++17 /O2 /DNDEBUG /DV8_COMPRESS_POINTERS /DV8_31BIT_SMIS_ON_64BIT_ARCH /w ^
-            -I"%JAVA_HOME%\include" -I"%JAVA_HOME%\include\win32" ^
-            -Iv8-include -Ijni ^
-            -IC:\v8-build\v8\buildtools\third_party\libc++\trunk\include ^
-            -IC:\v8-build\v8\buildtools\third_party\libc++abi\trunk\include ^
+          REM MSVC로 컴파일 (JNI 코드는 V8 API만 호출, STL 직접 사용 없음)
+          cl /std:c++17 /O2 /DNDEBUG /DV8_COMPRESS_POINTERS /DV8_31BIT_SMIS_ON_64BIT_ARCH /w ^
+            /I"%JAVA_HOME%\include" /I"%JAVA_HOME%\include\win32" ^
+            /Iv8-include /Ijni ^
             /c jni\kr_co_coocon_v8_V8Impl.cpp ^
             /Fobuild\windows-x64\v8impl.obj
+          REM lld-link로 링크 (v8_monolith + libc++ obj 포함)
+          set LLD_LINK=C:\v8-build\v8\third_party\llvm-build\Release+Asserts\bin\lld-link.exe
           %LLD_LINK% /DLL /OUT:build\windows-x64\libcooconv8.dll ^
             build\windows-x64\v8impl.obj ^
             C:\v8-build\v8\out\release\obj\v8_monolith.lib ^
             C:\v8-build\v8\out\release\obj\buildtools\third_party\libc++\libc++\*.obj ^
-            userenv.lib IPHLPAPI.lib Ws2_32.lib WINMM.lib psapi.lib
+            userenv.lib IPHLPAPI.lib Ws2_32.lib WINMM.lib psapi.lib advapi32.lib dbghelp.lib
 
       - name: 검증
         shell: cmd
