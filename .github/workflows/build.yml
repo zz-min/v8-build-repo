@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       platforms:
-        description: '빌드할 플랫폼 (all / darwin-arm64 / darwin-x64 / linux-x64 / windows-x64)'
+        description: '빌드할 플랫폼 (all / darwin-arm64 / darwin-x86_64 / linux-x86_64 / windows-x86_64)'
         required: true
         default: 'all'
 
@@ -97,15 +97,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: darwin-arm64
-          path: |
-            build/darwin-arm64/libcooconv8.dylib
-            $HOME/v8-build/v8/out/release/obj/libv8_monolith.a
+          path: build/darwin-arm64/libcooconv8.dylib
 
   # ===================================================
   # macOS Intel
   # ===================================================
-  darwin-x64:
-    if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'darwin-x64' }}
+  darwin-x86_64:
+    if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'darwin-x86_64' }}
     runs-on: macos-15-intel
     timeout-minutes: 120
     steps:
@@ -153,7 +151,7 @@ jobs:
 
       - name: JNI 브릿지 컴파일
         run: |
-          mkdir -p build/darwin-x64
+          mkdir -p build/darwin-x86_64
           clang++ \
             -I$JAVA_HOME/include \
             -I$JAVA_HOME/include/darwin \
@@ -165,56 +163,62 @@ jobs:
             -DV8_31BIT_SMIS_ON_64BIT_ARCH \
             -w \
             -c jni/kr_co_coocon_v8_V8Impl.cpp \
-            -o build/darwin-x64/v8impl.o
+            -o build/darwin-x86_64/v8impl.o
 
           clang++ \
             -shared \
             -arch x86_64 \
             -lc++ \
             -undefined dynamic_lookup \
-            -o build/darwin-x64/libcooconv8.dylib \
-            build/darwin-x64/v8impl.o \
+            -o build/darwin-x86_64/libcooconv8.dylib \
+            build/darwin-x86_64/v8impl.o \
             $HOME/v8-build/v8/out/release/obj/libv8_monolith.a
 
       - name: 검증
         run: |
-          file build/darwin-x64/libcooconv8.dylib
-          ls -lh build/darwin-x64/libcooconv8.dylib
+          file build/darwin-x86_64/libcooconv8.dylib
+          ls -lh build/darwin-x86_64/libcooconv8.dylib
 
       - name: 산출물 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: darwin-x64
-          path: |
-            build/darwin-x64/libcooconv8.dylib
-            $HOME/v8-build/v8/out/release/obj/libv8_monolith.a
+          name: darwin-x86_64
+          path: build/darwin-x86_64/libcooconv8.dylib
 
   # ===================================================
   # Linux x86_64
   # ===================================================
-  linux-x64:
-    if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'linux-x64' }}
+  linux-x86_64:
+    if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'linux-x86_64' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    container:
+      image: centos:7
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-
-      - name: 도구 설치
+      - name: 도구 설치 (CentOS 7)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build clang lld llvm
+          # CentOS 7 vault repo로 변경 (EOL 대응)
+          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*.repo
+          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*.repo
+          yum install -y centos-release-scl || true
+          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-SCLo-*.repo 2>/dev/null || true
+          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-SCLo-*.repo 2>/dev/null || true
+          # 개발 도구 설치
+          yum install -y git python3 ninja-build gcc gcc-c++ make curl which
+          # depot_tools
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
           echo "$HOME/depot_tools" >> $GITHUB_PATH
+          # pip setuptools
+          pip3 install setuptools
 
       - name: JDK 설치
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
+        run: |
+          cd /tmp
+          curl -LO https://cdn.azul.com/zulu/bin/zulu17.54.21-ca-jdk17.0.13-linux_x64.tar.gz
+          tar xzf zulu17*.tar.gz -C /opt/
+          echo "JAVA_HOME=/opt/zulu17.54.21-ca-jdk17.0.13-linux_x64" >> $GITHUB_ENV
 
       - name: V8 소스 받기
         run: |
@@ -247,8 +251,8 @@ jobs:
 
       - name: JNI 브릿지 컴파일
         run: |
-          mkdir -p build/linux-x64
-          clang++ \
+          mkdir -p build/linux-x86_64
+          $HOME/v8-build/v8/third_party/llvm-build/Release+Asserts/bin/clang++ \
             -I$JAVA_HOME/include \
             -I$JAVA_HOME/include/linux \
             -Iv8-include \
@@ -258,34 +262,34 @@ jobs:
             -DV8_31BIT_SMIS_ON_64BIT_ARCH \
             -w \
             -c jni/kr_co_coocon_v8_V8Impl.cpp \
-            -o build/linux-x64/v8impl.o
+            -o build/linux-x86_64/v8impl.o
 
-          clang++ \
+          $HOME/v8-build/v8/third_party/llvm-build/Release+Asserts/bin/clang++ \
             -shared \
-            -o build/linux-x64/libcooconv8.so \
-            build/linux-x64/v8impl.o \
+            -o build/linux-x86_64/libcooconv8.so \
+            build/linux-x86_64/v8impl.o \
             $HOME/v8-build/v8/out/release/obj/libv8_monolith.a \
             -lstdc++ -lrt \
             -s
 
       - name: 검증
         run: |
-          file build/linux-x64/libcooconv8.so
-          ls -lh build/linux-x64/libcooconv8.so
+          file build/linux-x86_64/libcooconv8.so
+          ls -lh build/linux-x86_64/libcooconv8.so
+          # glibc 호환성 확인
+          objdump -T build/linux-x86_64/libcooconv8.so | grep GLIBC | sed 's/.*GLIBC_//' | sort -V | tail -1 | xargs -I{} echo "최소 요구 GLIBC: {}"
 
       - name: 산출물 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: linux-x64
-          path: |
-            build/linux-x64/libcooconv8.so
-            $HOME/v8-build/v8/out/release/obj/libv8_monolith.a
+          name: linux-x86_64
+          path: build/linux-x86_64/libcooconv8.so
 
   # ===================================================
   # Windows x86_64
   # ===================================================
-  windows-x64:
-    if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows-x64' }}
+  windows-x86_64:
+    if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows-x86_64' }}
     runs-on: windows-latest
     timeout-minutes: 180
     env:
@@ -375,7 +379,7 @@ jobs:
         shell: cmd
         run: |
           call "%VS_INSTALL_PATH%\VC\Auxiliary\Build\vcvarsall.bat" amd64
-          mkdir build\windows-x64
+          mkdir build\windows-x86_64
           set CLANG_CL=C:\v8-build\v8\third_party\llvm-build\Release+Asserts\bin\clang-cl.exe
           set LLD_LINK=C:\v8-build\v8\third_party\llvm-build\Release+Asserts\bin\lld-link.exe
           REM __config_site 생성 (V8 빌드에서 사용하는 libc++ 설정)
@@ -394,9 +398,9 @@ jobs:
             -IC:\v8-build\v8\buildtools\third_party\libc++\trunk\include ^
             -IC:\v8-build\v8\buildtools\third_party\libc++abi\trunk\include ^
             /c jni\kr_co_coocon_v8_V8Impl.cpp ^
-            /Fobuild\windows-x64\v8impl.obj
-          %LLD_LINK% /DLL /OUT:build\windows-x64\libcooconv8.dll /NODEFAULTLIB:libc++ ^
-            build\windows-x64\v8impl.obj ^
+            /Fobuild\windows-x86_64\v8impl.obj
+          %LLD_LINK% /DLL /OUT:build\windows-x86_64\libcooconv8.dll /NODEFAULTLIB:libc++ ^
+            build\windows-x86_64\v8impl.obj ^
             C:\v8-build\v8\out\release\obj\v8_monolith.lib ^
             C:\v8-build\v8\out\release\obj\buildtools\third_party\libc++\libc++\*.obj ^
             userenv.lib IPHLPAPI.lib Ws2_32.lib WINMM.lib psapi.lib advapi32.lib dbghelp.lib msvcprt.lib
@@ -404,10 +408,10 @@ jobs:
       - name: 검증
         shell: cmd
         run: |
-          dir build\windows-x64\libcooconv8.dll
+          dir build\windows-x86_64\libcooconv8.dll
 
       - name: 산출물 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: windows-x64
-          path: build/windows-x64/libcooconv8.dll
+          name: windows-x86_64
+          path: build/windows-x86_64/libcooconv8.dll
