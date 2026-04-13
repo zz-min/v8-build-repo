@@ -378,12 +378,14 @@ jobs:
           mkdir build\windows-x64
           set CLANG_CL=C:\v8-build\v8\third_party\llvm-build\Release+Asserts\bin\clang-cl.exe
           set LLD_LINK=C:\v8-build\v8\third_party\llvm-build\Release+Asserts\bin\lld-link.exe
+          echo === __config_site 파일 위치 확인 ===
+          dir /s /b C:\v8-build\v8\out\release\*__config_site*
           %CLANG_CL% /std:c++17 /O2 /DNDEBUG /DV8_COMPRESS_POINTERS /DV8_31BIT_SMIS_ON_64BIT_ARCH /w ^
             -I"%JAVA_HOME%\include" -I"%JAVA_HOME%\include\win32" ^
             -Iv8-include -Ijni ^
+            -IC:\v8-build\v8\out\release\gen\buildtools\third_party\libc++ ^
             -IC:\v8-build\v8\buildtools\third_party\libc++\trunk\include ^
             -IC:\v8-build\v8\buildtools\third_party\libc++abi\trunk\include ^
-            -IC:\v8-build\v8\out\release\gen ^
             /c jni\kr_co_coocon_v8_V8Impl.cpp ^
             /Fobuild\windows-x64\v8impl.obj
           %LLD_LINK% /DLL /OUT:build\windows-x64\libcooconv8.dll ^
