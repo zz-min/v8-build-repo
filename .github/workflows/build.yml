@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       platforms:
-        description: '빌드할 플랫폼 (all / darwin-arm64 / darwin-x86_64 / linux-x86_64 / windows-x86_64 / windows-x86)'
+        description: '빌드할 플랫폼 (all / android / darwin-arm64 / darwin-x86_64 / linux-x86_64 / windows-x86_64 / windows-x86)'
         required: true
         default: 'all'
 
@@ -566,3 +566,146 @@ jobs:
         with:
           name: windows-x86
           path: build/windows-x86/libcooconv8.dll
+
+  # ===================================================
+  # Android (arm64-v8a / armeabi-v7a / x86_64 / x86)
+  #   - Ubuntu 호스트에서 4개 ABI 크로스컴파일
+  #   - 산출물: libv8_monolith.a (사내 GitLab 오프라인 링크용) + libcooconv8.so (검증/jniLibs용)
+  # ===================================================
+  android:
+    if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'android' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            target_cpu: arm64
+            v8_arch: android.arm64
+            ndk_triple: aarch64-linux-android
+            page16k: true
+          - abi: armeabi-v7a
+            target_cpu: arm
+            v8_arch: android.arm
+            ndk_triple: armv7a-linux-androideabi
+            page16k: false
+          - abi: x86_64
+            target_cpu: x64
+            v8_arch: android.x64
+            ndk_triple: x86_64-linux-android
+            page16k: true
+          - abi: x86
+            target_cpu: x86
+            v8_arch: android.x86
+            ndk_triple: i686-linux-android
+            page16k: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: 도구 설치
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build pkg-config
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
+          echo "$HOME/depot_tools" >> $GITHUB_PATH
+          # 구버전 V8(2021) DEPS 에 py2 vpython 훅('vpython ... -vpython-tool install')이 있으나
+          # py2 cpython 이 더 이상 제공되지 않아 실패. monolith 빌드(py3)엔 불필요하므로 shim 으로 처리:
+          #   -vpython-tool 호출(py2 venv 사전설치)은 no-op, 그 외는 vpython3 로 위임. gclient 본체는 무영향.
+          cat > "$HOME/depot_tools/vpython" <<'VPY'
+          #!/usr/bin/env bash
+          for a in "$@"; do
+            [ "$a" = "-vpython-tool" ] && exit 0
+          done
+          exec vpython3 "$@"
+          VPY
+          chmod +x "$HOME/depot_tools/vpython"
+
+      - name: V8 소스 받기 (Android 의존성 포함)
+        run: |
+          cd $HOME
+          mkdir v8-build && cd v8-build
+          gclient config https://chromium.googlesource.com/v8/v8.git
+          # Android NDK/sysroot 의존성을 함께 받도록 target_os 지정
+          echo "target_os = ['android']" >> .gclient
+          gclient sync --revision ${{ env.V8_VERSION }} --no-history --shallow
+
+      - name: V8 소스 패치
+        run: |
+          bash patches/apply-patches.sh $HOME/v8-build/v8
+
+      - name: V8 모놀리스 빌드 (${{ matrix.abi }})
+        run: |
+          cd $HOME/v8-build/v8
+          # 로컬 v8/android-*/args.gn 와 동일한 구성 (pointer compression OFF 포함)
+          gn gen out/release --args='
+            is_debug=false
+            target_os="android"
+            target_cpu="${{ matrix.target_cpu }}"
+            v8_target_cpu="${{ matrix.target_cpu }}"
+            v8_monolithic=true
+            v8_use_external_startup_data=false
+            is_component_build=false
+            use_custom_libcxx=false
+            v8_enable_i18n_support=false
+            v8_enable_pointer_compression=false
+            v8_android_log_stdout=true
+            symbol_level=0
+            treat_warnings_as_errors=false
+            clang_use_chrome_plugins=false
+          '
+          ninja -C out/release v8_monolith
+
+      - name: JNI 브릿지 컴파일 + 링크 (NDK, ${{ matrix.abi }})
+        run: |
+          set -e
+          V8=$HOME/v8-build/v8
+          # gclient 이 받은 NDK 위치 자동 탐지 (버전에 따라 android_ndk / android_toolchain 등 경로가 다름)
+          TOOLCHAIN=$(find $V8/third_party -type d -path '*toolchains/llvm/prebuilt/linux-x86_64' 2>/dev/null | head -1)
+          if [ -z "$TOOLCHAIN" ]; then
+            echo "[ERROR] NDK 툴체인을 찾을 수 없습니다. third_party 내 android 관련 디렉터리:"
+            ls -d $V8/third_party/*android* 2>/dev/null || true
+            exit 1
+          fi
+          echo "NDK 툴체인: $TOOLCHAIN"
+          API=21
+          CXX=$TOOLCHAIN/bin/${{ matrix.ndk_triple }}$API-clang++
+          OUT=build/${{ matrix.abi }}
+          mkdir -p $OUT
+
+          # 컴파일: pointer compression OFF 이므로 V8_COMPRESS_POINTERS 정의하지 않음 (모놀리스와 일치)
+          $CXX -Iv8-include -Ijni \
+            -fPIC -std=c++17 -O3 -DNDEBUG -w \
+            -c jni/kr_co_coocon_v8_V8Impl.cpp -o $OUT/v8impl.o
+
+          # 링크 플래그: 로컬 rebuild_native.sh 와 동일 (Full RELRO, separate-code, static-libstdc++)
+          LDFLAGS="-shared -llog -s -static-libstdc++ -Wl,-z,relro -Wl,-z,now -Wl,-z,separate-code"
+          if [ "${{ matrix.page16k }}" = "true" ]; then
+            # 64비트 ABI: 16KB 페이지 정렬
+            LDFLAGS="$LDFLAGS -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384"
+          fi
+
+          $CXX $LDFLAGS -o $OUT/libcooconv8.so \
+            $OUT/v8impl.o \
+            $V8/out/release/obj/libv8_monolith.a
+
+          # 사내 폐쇄망 GitLab 오프라인 링크용으로 모놀리스 .a 도 함께 업로드
+          cp $V8/out/release/obj/libv8_monolith.a $OUT/libv8_monolith.a
+
+      - name: 검증 (WebAssembly 포함 여부)
+        run: |
+          file build/${{ matrix.abi }}/libcooconv8.so
+          ls -lh build/${{ matrix.abi }}/libcooconv8.so build/${{ matrix.abi }}/libv8_monolith.a
+          echo "libcooconv8.so 내 'WebAssembly' 문자열 수: $(strings -a build/${{ matrix.abi }}/libcooconv8.so | grep -c WebAssembly)"
+
+      - name: 산출물 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ matrix.abi }}
+          path: |
+            build/${{ matrix.abi }}/libcooconv8.so
+            build/${{ matrix.abi }}/libv8_monolith.a
