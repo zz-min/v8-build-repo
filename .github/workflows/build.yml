@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       platforms:
-        description: '빌드할 플랫폼 (all / android / darwin-arm64 / darwin-x86_64 / linux-x86_64 / windows-x86_64 / windows-x86)'
+        description: '빌드할 플랫폼 (all / android / darwin-arm64 / darwin-x86_64 / linux-x86_64 / linux-x86_64-el6 / windows-x86_64 / windows-x86)'
         required: true
         default: 'all'
 
@@ -309,6 +309,164 @@ jobs:
         with:
           name: linux-x86_64
           path: build/linux-x86_64/libcooconv8.so
+
+  # ===================================================
+  # Linux x86_64 — EL6 호환 빌드 (RHEL/CentOS 6, glibc 2.12)
+  #  - 공통 linux-x86_64 산출물과 별개. RHEL 6 고객 전용 배포용.
+  #  - V8 모놀리스는 동일하게 호스트 Ubuntu에서 빌드하고,
+  #    최종 링크만 centos:6 컨테이너에서 수행 → GLIBC 요구치 2.12 이하
+  #  - libstdc++/libgcc 정적 링크 → GLIBCXX 요구치 제거
+  #  - 'all' 에는 포함하지 않음 (명시적으로 linux-x86_64-el6 선택 시에만 실행)
+  # ===================================================
+  linux-x86_64-el6:
+    if: ${{ github.event.inputs.platforms == 'linux-x86_64-el6' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: 도구 설치
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang lld llvm
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
+          echo "$HOME/depot_tools" >> $GITHUB_PATH
+
+      - name: V8 소스 받기
+        run: |
+          cd $HOME
+          mkdir v8-build && cd v8-build
+          gclient config https://chromium.googlesource.com/v8/v8.git
+          gclient sync --revision ${{ env.V8_VERSION }} --no-history --shallow
+
+      - name: V8 소스 패치
+        run: |
+          bash patches/apply-patches.sh $HOME/v8-build/v8
+
+      - name: V8 모놀리스 빌드 (호스트 Ubuntu)
+        run: |
+          cd $HOME/v8-build/v8
+          gn gen out/release --args='
+            is_debug=false
+            target_cpu="x64"
+            host_cpu="x64"
+            target_os="linux"
+            v8_monolithic=true
+            v8_use_external_startup_data=false
+            is_component_build=false
+            use_custom_libcxx=false
+            v8_enable_i18n_support=false
+            treat_warnings_as_errors=false
+            clang_use_chrome_plugins=false
+          '
+          ninja -C out/release v8_monolith
+
+      - name: JDK 다운로드 (호스트)
+        # centos:6 컨테이너의 curl/NSS/CA 번들은 구형이라 최신 HTTPS CDN 접속이 불안정 → 호스트에서 받아 마운트
+        run: |
+          mkdir -p $HOME/jdk
+          cd $HOME/jdk
+          curl -sLO https://cdn.azul.com/zulu/bin/zulu17.54.21-ca-jdk17.0.13-linux_x64.tar.gz
+          tar xzf zulu17*.tar.gz
+          rm zulu17*.tar.gz
+          ls -d $HOME/jdk/zulu17*
+
+      - name: JNI 브릿지 컴파일 + 링크 (CentOS 6 Docker — glibc 2.12 호환)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -v $HOME/v8-build:/v8-build \
+            -v $HOME/jdk:/jdk \
+            centos:6 \
+            /bin/bash -c '
+              set -e
+              export LANG=en_US.UTF-8
+
+              # CentOS 6 은 EOL — mirrorlist 전부 제거하고 vault 6.10 직접 지정
+              rm -f /etc/yum.repos.d/*.repo
+              # vault 는 https 로 301 리다이렉트됨. centos:6 의 구형 CA 번들 대비 sslverify=0
+              V=https://vault.centos.org/6.10
+              {
+                for r in "base os" "updates updates" "extras extras"; do
+                  set -- $r
+                  printf "[%s]\nname=CentOS-6.10 %s\nbaseurl=%s/%s/x86_64/\ngpgcheck=0\nsslverify=0\nenabled=1\n" "$1" "$1" "$V" "$2"
+                done
+                printf "[sclo-rh]\nname=CentOS-6.10 SCLo rh\nbaseurl=%s/sclo/x86_64/rh/\ngpgcheck=0\nsslverify=0\nenabled=1\n" "$V"
+              } > /etc/yum.repos.d/vault.repo
+              cat /etc/yum.repos.d/vault.repo
+              yum clean all
+              yum install -y tar which file
+
+              # devtoolset: EL6 용 최신은 9 (10부터 EL6 미지원). 8 → 7 순 폴백
+              # ※ 반드시 devtoolset 의 binutils 를 써야 함:
+              #    V8 모놀리스(clang 13 산출)에 R_X86_64_REX_GOTPCRELX 등 신형 relocation 이 포함되어
+              #    시스템 ld(binutils 2.20) 로는 링크 불가
+              yum install -y devtoolset-9-gcc-c++ devtoolset-9-binutils \
+                || yum install -y devtoolset-8-gcc-c++ devtoolset-8-binutils \
+                || yum install -y devtoolset-7-gcc-c++ devtoolset-7-binutils
+              DTS=$(ls -d /opt/rh/devtoolset-* 2>/dev/null | sort -V | tail -1)
+              echo "Using devtoolset: $DTS"
+              source $DTS/enable
+              g++ --version | head -1
+              ld --version | head -1
+              echo "시스템 glibc: $(ldd --version | head -1)"
+
+              export JAVA_HOME=$(ls -d /jdk/zulu17*)
+
+              mkdir -p /workspace/build/linux-x86_64-el6
+
+              g++ \
+                -I$JAVA_HOME/include \
+                -I$JAVA_HOME/include/linux \
+                -I/workspace/v8-include \
+                -I/workspace/jni \
+                -fPIC -std=c++17 -O3 -DNDEBUG \
+                -DV8_COMPRESS_POINTERS \
+                -DV8_31BIT_SMIS_ON_64BIT_ARCH \
+                -w \
+                -c /workspace/jni/kr_co_coocon_v8_V8Impl.cpp \
+                -o /workspace/build/linux-x86_64-el6/v8impl.o
+
+              # libstdc++ / libgcc 정적 링크 → 고객 시스템 libstdc++ 버전 의존성 제거
+              g++ \
+                -shared \
+                -o /workspace/build/linux-x86_64-el6/libcooconv8.so \
+                /workspace/build/linux-x86_64-el6/v8impl.o \
+                /v8-build/v8/out/release/obj/libv8_monolith.a \
+                -static-libstdc++ -static-libgcc \
+                -lrt -ldl -lpthread \
+                -s
+
+              SO=/workspace/build/linux-x86_64-el6/libcooconv8.so
+              file $SO
+              ls -lh $SO
+              MAX_GLIBC=$(objdump -T $SO | grep -oE "GLIBC_[0-9.]+" | sed "s/GLIBC_//" | sort -V | tail -1)
+              GLIBCXX=$(objdump -T $SO | grep -oE "GLIBCXX_[0-9.]+" | sort -uV | tr "\n" " ")
+              CXXABI=$(objdump -T $SO | grep -oE "CXXABI_[0-9.]+" | sort -uV | tr "\n" " ")
+              echo "최소 요구 GLIBC   : $MAX_GLIBC  (목표 <= 2.12)"
+              echo "요구 GLIBCXX      : ${GLIBCXX:-없음}  (목표: 없음)"
+              echo "요구 CXXABI       : ${CXXABI:-없음}  (목표: 없음)"
+
+              # 검증: RHEL 6 (glibc 2.12) 에서 로드 가능해야 함
+              if [ "$(printf "%s\n2.12\n" "$MAX_GLIBC" | sort -V | tail -1)" != "2.12" ]; then
+                echo "::error::GLIBC 요구치 $MAX_GLIBC > 2.12 — RHEL 6 호환 실패"; exit 1
+              fi
+              if [ -n "$GLIBCXX$CXXABI" ]; then
+                echo "::error::libstdc++ 심볼이 동적으로 남아 있음 — 정적 링크 실패"; exit 1
+              fi
+              echo "EL6 호환 검증 통과"
+            '
+
+      - name: 산출물 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64-el6
+          path: build/linux-x86_64-el6/libcooconv8.so
 
   # ===================================================
   # Windows x86_64
